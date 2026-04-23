@@ -1,2 +1,2 @@
 # an-de
-fork of notawm with blackjack and hookers
+fork of notawm(https://github.com/eblanrose/notawm) with blackjack and hookers
