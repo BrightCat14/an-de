@@ -15,13 +15,20 @@ Atom wm_del_win;
 Atom wm_proto;
 Atom wm_take_focus;
 Atom net_wm_name;
-Atom net_wm_state;
-Atom net_wm_state_hidden;
-Atom net_wm_state_fs;
+ Atom net_wm_state;
+ Atom net_wm_state_hidden;
+ Atom net_wm_state_fs;
+ Atom net_wm_state_add;
+ Atom net_wm_state_remove;
+ Atom net_wm_state_toggle;
 Atom net_wm_type;
-Atom type_dock;
-Atom type_desk;
-Atom utf8_str;
+ Atom type_dock;
+ Atom type_desk;
+ Atom type_toolbar;
+ Atom type_menu;
+ Atom type_popup;
+ Atom type_splash;
+ Atom utf8_str;
 Atom net_tray_opcode;
 
 XftFont *font;
@@ -52,10 +59,15 @@ GC gc_bar;
 GC gc_text;
 GC gc_title;
 
-Cursor cur;
+ Cursor cur;
+ Cursor cur_resize_tl, cur_resize_tr, cur_resize_bl, cur_resize_br;
+ Cursor cur_resize_l, cur_resize_r, cur_resize_t, cur_resize_b;
 
 int top_h = 28;
 int bot_h = 36;
+
+int shape_event_base, shape_error_base;
+int shape_available = 0;
 
 App apps[MAX_APP];
 int app_cnt = 0;
@@ -253,18 +265,33 @@ void launch(const char *exec) {
     }
 }
 
-void setup_cursor(void) {
-    cur = XCreateFontCursor(dpy, XC_left_ptr);
-    XDefineCursor(dpy, root, cur);
-}
+ void setup_cursor(void) {
+     cur = XCreateFontCursor(dpy, XC_left_ptr);
+     cur_resize_tl = XCreateFontCursor(dpy, XC_top_left_corner);
+     cur_resize_tr = XCreateFontCursor(dpy, XC_top_right_corner);
+     cur_resize_bl = XCreateFontCursor(dpy, XC_bottom_left_corner);
+     cur_resize_br = XCreateFontCursor(dpy, XC_bottom_right_corner);
+     cur_resize_l = XCreateFontCursor(dpy, XC_left_side);
+     cur_resize_r = XCreateFontCursor(dpy, XC_right_side);
+     cur_resize_t = XCreateFontCursor(dpy, XC_top_side);
+     cur_resize_b = XCreateFontCursor(dpy, XC_bottom_side);
+     XDefineCursor(dpy, root, cur);
+ }
 
 void init_wm(void) {
     FILE *log = fopen(LOG_FILE, "w");
-    if (log) { fprintf(log, "=== NotAWM Log ===\n"); fclose(log); }
-    LOG_INFO("Init NotAWM...");
+    if (log) { fprintf(log, "=== an/DE Log ===\n"); fclose(log); }
+    LOG_INFO("Init anDE...");
     get_refresh();
     gettimeofday(&last_frame, NULL);
     setup_cursor();
     load_apps();
+    /* initialize XShape extension for rounded buttons */
+    if (XShapeQueryExtension(dpy, &shape_event_base, &shape_error_base)) {
+        shape_available = 1;
+        LOG_INFO("XShape extension available");
+    } else {
+        LOG_WARN("XShape extension not available, buttons will be square");
+    }
     LOG_INFO("Init complete");
 }

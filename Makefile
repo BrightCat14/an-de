@@ -1,13 +1,20 @@
 CC = clang
 CFLAGS = -Wall -O2 $(shell pkg-config --cflags x11 xft fontconfig xrandr)
-LIBS = $(shell pkg-config --libs x11 xft fontconfig xrandr) -lImlib2
-TARGET = notawm
+LIBS = $(shell pkg-config --libs x11 xft fontconfig xrandr) -lImlib2 -lXext
+TARGET = notande
 OBJS = wm.o frames.o panels.o main.o
+POWERCTL_DIR = powerctl
+POWERCTL_LIB = $(RUST_DIR)/target/release/libpowerctl.so
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(OBJS) -o $(TARGET) $(LIBS)
+$(POWERCTL_LIB):
+	cd $(POWERCTL_DIR) && cargo build --release
+
+$(TARGET): $(OBJS) $(POWERCTL_LIB)
+	$(CC) $(OBJS) -o $(TARGET) $(LIBS) \
+	-L$(POWERCTL_DIR)/target/release -lpowerctl \
+	-Wl,-rpath=$(POWERCTL_DIR)/target/release
 
 wm.o: wm.c wm.h
 	$(CC) $(CFLAGS) -c wm.c
@@ -23,6 +30,7 @@ main.o: main.c wm.h frames.h panels.h
 
 clean:
 	rm -f $(OBJS) $(TARGET)
+	cd $(POWERCTL_DIR) && cargo clean
 
 install:
 	cp $(TARGET) /usr/local/bin/

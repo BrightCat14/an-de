@@ -29,20 +29,22 @@ extern Window drag_win;
 extern int drag_sx, drag_sy;
 extern int win_sx, win_sy;
 
-void draw_title(Frame *f);
-void focus(Window w);
-void close_win(Window w);
-void minimize(Frame *f);
-void toggle_fs(Frame *f);
-Window mk_frame(Window c);
-void rm_frame(Window f);
-Frame* find_frame(Window w);
-Bool need_frame(Window w);
-char* get_title(Window w);
-pid_t get_pid(Window w);
-void key_handler(XKeyEvent *e);
-void btn_handler_frames(XButtonEvent *e);
-void motion_handler(XMotionEvent *e);
-void release_handler(XButtonEvent *e);
+ void draw_title(Frame *f);
+ void focus(Window w);
+ void close_win(Window w);
+ void minimize(Frame *f);
+ void toggle_fs(Frame *f);
+ Window mk_frame(Window c);
+ void rm_frame(Window f);
+ Frame* find_frame(Window w);
+ Bool need_frame(Window w);
+ char* get_title(Window w);
+ pid_t get_pid(Window w);
+ void key_handler(XKeyEvent *e);
+ void btn_handler_frames(XButtonEvent *e);
+ void motion_handler(XMotionEvent *e);
+ void release_handler(XButtonEvent *e);
+ int get_resize_dir(Frame *f, int mx, int my);
+ Cursor get_resize_cursor(int dir);
 
 #endif

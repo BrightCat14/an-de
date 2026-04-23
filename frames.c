@@ -8,6 +8,28 @@ Bool drag = False;
 Window drag_win = None;
 int drag_sx, drag_sy, win_sx, win_sy;
 
+Bool resize = False;
+Window resize_win = None;
+int resize_sx, resize_sy, resize_w, resize_h;
+int resize_ox, resize_oy;
+int resize_dir; // 0=right,1=left,2=bottom,3=top,4=corners
+
+extern int shape_available;
+
+static void make_circle_shape(Window win, int size) {
+    if (!shape_available) return;
+    Pixmap mask = XCreatePixmap(dpy, win, size, size, 1);
+    if (!mask) return;
+    GC gc = XCreateGC(dpy, mask, 0, NULL);
+    XSetForeground(dpy, gc, 0);
+    XFillRectangle(dpy, mask, gc, 0, 0, size, size);
+    XSetForeground(dpy, gc, 1);
+    XFillArc(dpy, mask, gc, 0, 0, size, size, 0, 360*64);
+    XShapeCombineMask(dpy, win, ShapeBounding, 0, 0, mask, ShapeSet);
+    XFreeGC(dpy, gc);
+    XFreePixmap(dpy, mask);
+}
+
 pid_t get_pid(Window w) {
     Atom at = XInternAtom(dpy, "_NET_WM_PID", False), type;
     int fmt;
@@ -35,54 +57,95 @@ char* get_title(Window w) {
     return strdup("");
 }
 
-void draw_title(Frame *f) {
-    if (f->fullscreen) return;
-    XWindowAttributes a;
-    if (!XGetWindowAttributes(dpy, f->title, &a)) return;
-    XClearWindow(dpy, f->title);
-    if (!f->title_draw) f->title_draw = XftDrawCreate(dpy, f->title, vis, cmap);
-    XSetForeground(dpy, gc_title, f->focused ? clr_title_ac : clr_title_bg);
-    XFillRectangle(dpy, f->title, gc_title, 0, 0, f->w, 28);
-    if (f->title_text && strlen(f->title_text)) {
-        char dt[256];
-        snprintf(dt, sizeof(dt), "%s", f->title_text);
-        if (strlen(dt) > 40) strcpy(dt + 37, "...");
-        XGlyphInfo e;
-        XftTextExtentsUtf8(dpy, font, (FcChar8*)dt, strlen(dt), &e);
-        int tx = (f->w - e.width) / 2, ty = (28 + e.height) / 2;
-        XftDrawStringUtf8(f->title_draw, &clr_title, font, tx, ty, (FcChar8*)dt, strlen(dt));
-    }
-    if (XGetWindowAttributes(dpy, f->btn_close, &a)) {
-        XSetForeground(dpy, gc_title, clr_close);
-        XFillRectangle(dpy, f->btn_close, gc_title, 0, 0, 18, 18);
-        XMoveWindow(dpy, f->btn_close, f->w - 24, 5);
-        XftDraw *d = XftDrawCreate(dpy, f->btn_close, vis, cmap);
-        XGlyphInfo e;
-        XftTextExtentsUtf8(dpy, font_bold, (FcChar8*)"x", 1, &e);
-        XftDrawStringUtf8(d, &clr_btn, font_bold, (18-e.width)/2, (18+e.height)/2, (FcChar8*)"x", 1);
-        XftDrawDestroy(d);
-    }
-    if (XGetWindowAttributes(dpy, f->btn_max, &a)) {
-        XSetForeground(dpy, gc_title, clr_max);
-        XFillRectangle(dpy, f->btn_max, gc_title, 0, 0, 18, 18);
-        XMoveWindow(dpy, f->btn_max, f->w - 48, 5);
-        XftDraw *d = XftDrawCreate(dpy, f->btn_max, vis, cmap);
-        XGlyphInfo e;
-        XftTextExtentsUtf8(dpy, font_bold, (FcChar8*)"[]", 2, &e);
-        XftDrawStringUtf8(d, &clr_btn, font_bold, (18-e.width)/2, (18+e.height)/2, (FcChar8*)"[]", 2);
-        XftDrawDestroy(d);
-    }
-    if (XGetWindowAttributes(dpy, f->btn_min, &a)) {
-        XSetForeground(dpy, gc_title, clr_min);
-        XFillRectangle(dpy, f->btn_min, gc_title, 0, 0, 18, 18);
-        XMoveWindow(dpy, f->btn_min, f->w - 72, 5);
-        XftDraw *d = XftDrawCreate(dpy, f->btn_min, vis, cmap);
-        XGlyphInfo e;
-        XftTextExtentsUtf8(dpy, font_bold, (FcChar8*)"-", 1, &e);
-        XftDrawStringUtf8(d, &clr_btn, font_bold, (18-e.width)/2, (18+e.height)/2, (FcChar8*)"-", 1);
-        XftDrawDestroy(d);
-    }
-}
+ void draw_title(Frame *f) {
+     if (f->fullscreen) return;
+     XWindowAttributes a;
+     if (!XGetWindowAttributes(dpy, f->title, &a)) return;
+     XClearWindow(dpy, f->title);
+     if (!f->title_draw) f->title_draw = XftDrawCreate(dpy, f->title, vis, cmap);
+     XSetForeground(dpy, gc_title, f->focused ? clr_title_ac : clr_title_bg);
+      XFillRectangle(dpy, f->title, gc_title, 0, 0, f->w, top_h);
+     if (f->title_text && strlen(f->title_text)) {
+         char dt[256];
+         snprintf(dt, sizeof(dt), "%s", f->title_text);
+         if (strlen(dt) > 40) strcpy(dt + 37, "...");
+         XGlyphInfo e;
+         XftTextExtentsUtf8(dpy, font, (FcChar8*)dt, strlen(dt), &e);
+          int tx = (f->w - e.width) / 2, ty = (top_h + e.height) / 2;
+         XftDrawStringUtf8(f->title_draw, &clr_title, font, tx, ty, (FcChar8*)dt, strlen(dt));
+     }
+      if (XGetWindowAttributes(dpy, f->btn_close, &a)) {
+          XSetForeground(dpy, gc_title, clr_close);
+          XFillRectangle(dpy, f->btn_close, gc_title, 0, 0, 18, 18);
+          XMoveWindow(dpy, f->btn_close, f->w - 24, 5);
+          XftDraw *d = XftDrawCreate(dpy, f->btn_close, vis, cmap);
+          XGlyphInfo e;
+          XftDrawDestroy(d);
+      }
+      if (XGetWindowAttributes(dpy, f->btn_max, &a)) {
+          XSetForeground(dpy, gc_title, clr_max);
+          XFillRectangle(dpy, f->btn_max, gc_title, 0, 0, 18, 18);
+          XMoveWindow(dpy, f->btn_max, f->w - 48, 5);
+          XftDraw *d = XftDrawCreate(dpy, f->btn_max, vis, cmap);
+          XGlyphInfo e;
+          XftDrawDestroy(d);
+      }
+      if (XGetWindowAttributes(dpy, f->btn_min, &a)) {
+          XSetForeground(dpy, gc_title, clr_min);
+          XFillRectangle(dpy, f->btn_min, gc_title, 0, 0, 18, 18);
+          XMoveWindow(dpy, f->btn_min, f->w - 72, 5);
+          XftDraw *d = XftDrawCreate(dpy, f->btn_min, vis, cmap);
+          XGlyphInfo e;
+          XftDrawDestroy(d);
+      }
+ }
+
+ #define RESIZE_BORDER 5
+
+ int get_resize_dir(Frame *f, int mx, int my) {
+     int dir = -1;
+     int border = RESIZE_BORDER;
+     // top-left corner
+     if (mx < border && my < border) dir = 4; // TL
+     // top-right corner
+     else if (mx > f->w - border && my < border) dir = 5; // TR
+     // bottom-left corner
+     else if (mx < border && my > f->h - border) dir = 6; // BL
+     // bottom-right corner
+     else if (mx > f->w - border && my > f->h - border) dir = 7; // BR
+     // left edge
+     else if (mx < border) dir = 0;
+     // right edge
+     else if (mx > f->w - border) dir = 1;
+     // top edge
+     else if (my < border) dir = 2;
+     // bottom edge
+     else if (my > f->h - border) dir = 3;
+     return dir;
+ }
+
+ Cursor get_resize_cursor(int dir) {
+     switch(dir) {
+         case 0: return cur_resize_l;
+         case 1: return cur_resize_r;
+         case 2: return cur_resize_t;
+         case 3: return cur_resize_b;
+         case 4: return cur_resize_tl;
+         case 5: return cur_resize_tr;
+         case 6: return cur_resize_bl;
+         case 7: return cur_resize_br;
+         default: return cur;
+     }
+ }
+
+ void update_wm_state(Frame *f) {
+     if (!f) return;
+     Atom states[2];
+     int count = 0;
+     if (f->fullscreen) states[count++] = net_wm_state_fs;
+     if (f->minimized) states[count++] = net_wm_state_hidden;
+     XChangeProperty(dpy, f->client, net_wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*)states, count);
+ }
 
 void focus(Window w) {
     if (w == None || w == root) return;
@@ -152,45 +215,50 @@ void close_win(Window w) {
     }
 }
 
-void minimize(Frame *f) {
-    if (!f) return;
-    XWindowAttributes a;
-    if (!XGetWindowAttributes(dpy, f->frame, &a)) return;
-    if (f->minimized) {
-        XMapWindow(dpy, f->frame);
-        if (XGetWindowAttributes(dpy, f->client, &a)) XMapWindow(dpy, f->client);
-        f->mapped = True; f->minimized = False;
-        focus(f->client);
-    } else {
-        XUnmapWindow(dpy, f->frame);
-        f->mapped = False; f->minimized = True;
-    }
-    update_bar();
-}
+ void minimize(Frame *f) {
+     if (!f) return;
+     XWindowAttributes a;
+     if (!XGetWindowAttributes(dpy, f->frame, &a)) return;
+     if (f->minimized) {
+         XMapWindow(dpy, f->frame);
+         if (XGetWindowAttributes(dpy, f->client, &a)) XMapWindow(dpy, f->client);
+         f->mapped = True; f->minimized = False;
+         focus(f->client);
+     } else {
+         XUnmapWindow(dpy, f->frame);
+         f->mapped = False; f->minimized = True;
+     }
+     update_wm_state(f);
+     update_bar();
+ }
 
 void toggle_fs(Frame *f) {
     if (!f) return;
     XWindowAttributes a;
     if (!XGetWindowAttributes(dpy, f->frame, &a)) return;
     if (!f->fullscreen) {
+        /* save current state */
         f->saved_x = f->x; f->saved_y = f->y; f->saved_w = f->w; f->saved_h = f->h;
-        XUnmapWindow(dpy, f->title);
+        int workarea_h = sh - top_h - bot_h;
         XSetWindowBorderWidth(dpy, f->frame, 0);
-        XMoveResizeWindow(dpy, f->frame, 0, 0, sw, sh);
+        XMoveResizeWindow(dpy, f->frame, 0, top_h, sw, workarea_h);
+        XMoveResizeWindow(dpy, f->title, 0, 0, sw, top_h);
         if (XGetWindowAttributes(dpy, f->client, &a))
-            XMoveResizeWindow(dpy, f->client, 0, 0, sw, sh);
-        f->fullscreen = True; f->x = 0; f->y = 0; f->w = sw; f->h = sh;
-        long d[] = {net_wm_state_fs, 0, 0, 0, 0};
-        XChangeProperty(dpy, f->client, net_wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*)d, 1);
+            XMoveResizeWindow(dpy, f->client, 0, top_h, sw, workarea_h - top_h);
+        f->fullscreen = True;
+        f->x = 0; f->y = top_h; f->w = sw; f->h = workarea_h;
+        update_wm_state(f);
     } else {
-        XMapWindow(dpy, f->title);
+        /* restore original geometry */
         XSetWindowBorderWidth(dpy, f->frame, 3);
         XMoveResizeWindow(dpy, f->frame, f->saved_x, f->saved_y, f->saved_w, f->saved_h);
         if (XGetWindowAttributes(dpy, f->client, &a))
-            XMoveResizeWindow(dpy, f->client, 0, 28, f->saved_w, f->saved_h - 28);
-        f->fullscreen = False; f->x = f->saved_x; f->y = f->saved_y; f->w = f->saved_w; f->h = f->saved_h;
-        long d[] = {0, 0, 0, 0, 0};
-        XChangeProperty(dpy, f->client, net_wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*)d, 0);
+            XMoveResizeWindow(dpy, f->client, 0, top_h, f->saved_w, f->saved_h - top_h);
+        /* ensure title bar matches restored width */
+        XMoveResizeWindow(dpy, f->title, 0, 0, f->saved_w, top_h);
+        f->fullscreen = False;
+        f->x = f->saved_x; f->y = f->saved_y; f->w = f->saved_w; f->h = f->saved_h;
+        update_wm_state(f);
         draw_title(f);
     }
     XRaiseWindow(dpy, f->frame);
@@ -201,52 +269,76 @@ Bool need_frame(Window w) {
     XWindowAttributes a;
     if (!XGetWindowAttributes(dpy, w, &a)) return False;
     if (a.override_redirect) return False;
+    
+    /* check _NET_WM_WINDOW_TYPE for types that shouldnt have decorations */
     Atom type; int fmt; unsigned long n, ab; unsigned char *d = NULL;
     if (XGetWindowProperty(dpy, w, net_wm_type, 0, 1, False, XA_ATOM, &type, &fmt, &n, &ab, &d) == Success && d) {
         Atom *t = (Atom*)d;
-        if (n > 0 && (t[0] == type_dock || t[0] == type_desk)) { XFree(d); return False; }
+        if (n > 0 && (t[0] == type_dock || t[0] == type_desk || t[0] == type_toolbar || 
+                      t[0] == type_menu || t[0] == type_popup || t[0] == type_splash)) {
+            XFree(d);
+            return False;
+        }
         XFree(d);
     }
+    
+    /* check _MOTIF_WM_HINTS for decorations hint */
+    Atom motif_hints = XInternAtom(dpy, "_MOTIF_WM_HINTS", False);
+    if (XGetWindowProperty(dpy, w, motif_hints, 0, 5, False, motif_hints, &type, &fmt, &n, &ab, &d) == Success && d) {
+        unsigned long *hints = (unsigned long*)d;
+        /* MWM_HINTS_DECORATIONS = (1 << 1) */
+        if (n >= 2 && (hints[0] & (1 << 1)) && hints[1] == 0) {
+            XFree(d);
+            return False;
+        }
+        XFree(d);
+    }
+    
     return True;
 }
 
 Window mk_frame(Window c) {
     XWindowAttributes a;
     if (!XGetWindowAttributes(dpy, c, &a)) return None;
-    int fx = a.x, fy = a.y + top_h, fw = a.width, fh = a.height + 28;
+     int fx = a.x, fy = a.y + top_h, fw = a.width, fh = a.height + top_h;
     if (fy + fh > sh - bot_h) fy = sh - bot_h - fh;
     Window f = XCreateSimpleWindow(dpy, root, fx, fy, fw, fh, 3, clr_border, clr_border);
-    Window t = XCreateSimpleWindow(dpy, f, 0, 0, fw, 28, 0, clr_title_bg, clr_title_bg);
-    Window bc = XCreateSimpleWindow(dpy, t, fw - 24, 5, 18, 18, 0, clr_close, clr_close);
-    Window bm = XCreateSimpleWindow(dpy, t, fw - 48, 5, 18, 18, 0, clr_max, clr_max);
-    Window bn = XCreateSimpleWindow(dpy, t, fw - 72, 5, 18, 18, 0, clr_min, clr_min);
-    frames[frame_cnt].frame = f; frames[frame_cnt].client = c; frames[frame_cnt].title = t;
-    frames[frame_cnt].btn_close = bc; frames[frame_cnt].btn_max = bm; frames[frame_cnt].btn_min = bn;
-    frames[frame_cnt].x = fx; frames[frame_cnt].y = fy; frames[frame_cnt].w = fw; frames[frame_cnt].h = fh;
-    frames[frame_cnt].mapped = False; frames[frame_cnt].focused = False;
-    frames[frame_cnt].minimized = False; frames[frame_cnt].fullscreen = False;
-    frames[frame_cnt].title_text = get_title(c); frames[frame_cnt].title_draw = NULL;
-    frame_cnt++;
-    XReparentWindow(dpy, c, f, 0, 28);
-    XSetWindowBorderWidth(dpy, c, 0);
-    XSelectInput(dpy, f, SubstructureRedirectMask | SubstructureNotifyMask |
-                 ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
-                 ExposureMask | EnterWindowMask | StructureNotifyMask);
-    XSelectInput(dpy, t, ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | EnterWindowMask);
-    XSelectInput(dpy, bc, ExposureMask | ButtonPressMask);
-    XSelectInput(dpy, bm, ExposureMask | ButtonPressMask);
-    XSelectInput(dpy, bn, ExposureMask | ButtonPressMask);
-    XSelectInput(dpy, c, PropertyChangeMask | StructureNotifyMask | FocusChangeMask);
-    XDefineCursor(dpy, f, cur); XDefineCursor(dpy, t, cur);
-    XDefineCursor(dpy, bc, cur); XDefineCursor(dpy, bm, cur); XDefineCursor(dpy, bn, cur); XDefineCursor(dpy, c, cur);
-    long d[] = {1, 0, 0, 0, 0};
-    XChangeProperty(dpy, c, net_wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*)d, 2);
-    XMapWindow(dpy, t); XMapWindow(dpy, bc); XMapWindow(dpy, bm); XMapWindow(dpy, bn);
-    draw_title(&frames[frame_cnt - 1]);
-    add_btn(c);
-    LOG_INFO("Frame 0x%lx for 0x%lx", f, c);
-    return f;
-}
+     Window t = XCreateSimpleWindow(dpy, f, 0, 0, fw, top_h, 0, clr_title_bg, clr_title_bg);
+     Window bc = XCreateSimpleWindow(dpy, t, fw - 24, 5, 18, 18, 0, clr_close, clr_close);
+     Window bm = XCreateSimpleWindow(dpy, t, fw - 48, 5, 18, 18, 0, clr_max, clr_max);
+     Window bn = XCreateSimpleWindow(dpy, t, fw - 72, 5, 18, 18, 0, clr_min, clr_min);
+     /* apply circular shape to buttons */
+     make_circle_shape(bc, 12);
+     make_circle_shape(bm, 12);
+     make_circle_shape(bn, 12);
+
+     frames[frame_cnt].frame = f; frames[frame_cnt].client = c; frames[frame_cnt].title = t;
+     frames[frame_cnt].btn_close = bc; frames[frame_cnt].btn_max = bm; frames[frame_cnt].btn_min = bn;
+     frames[frame_cnt].x = fx; frames[frame_cnt].y = fy; frames[frame_cnt].w = fw; frames[frame_cnt].h = fh;
+     frames[frame_cnt].mapped = False; frames[frame_cnt].focused = False;
+     frames[frame_cnt].minimized = False; frames[frame_cnt].fullscreen = False;
+     frames[frame_cnt].title_text = get_title(c); frames[frame_cnt].title_draw = NULL;
+     frame_cnt++;
+      XReparentWindow(dpy, c, f, 0, top_h);
+     XSetWindowBorderWidth(dpy, c, 0);
+      XSelectInput(dpy, f, SubstructureRedirectMask | SubstructureNotifyMask |
+                   ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
+                   ExposureMask | EnterWindowMask | LeaveWindowMask | StructureNotifyMask);
+     XSelectInput(dpy, t, ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | EnterWindowMask);
+     XSelectInput(dpy, bc, ExposureMask | ButtonPressMask);
+     XSelectInput(dpy, bm, ExposureMask | ButtonPressMask);
+     XSelectInput(dpy, bn, ExposureMask | ButtonPressMask);
+     XSelectInput(dpy, c, PropertyChangeMask | StructureNotifyMask | FocusChangeMask);
+     XDefineCursor(dpy, f, cur); XDefineCursor(dpy, t, cur);
+     XDefineCursor(dpy, bc, cur); XDefineCursor(dpy, bm, cur); XDefineCursor(dpy, bn, cur); XDefineCursor(dpy, c, cur);
+     long d[] = {1, 0, 0, 0, 0};
+     XChangeProperty(dpy, c, net_wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char*)d, 2);
+     XMapWindow(dpy, t); XMapWindow(dpy, bc); XMapWindow(dpy, bm); XMapWindow(dpy, bn);
+     draw_title(&frames[frame_cnt - 1]);
+     add_btn(c);
+     LOG_INFO("Frame 0x%lx for 0x%lx", f, c);
+     return f;
+ }
 
 void rm_frame(Window f) {
     LOG_INFO("Removing frame 0x%lx", f);
@@ -290,39 +382,116 @@ void key_handler(XKeyEvent *e) {
     else if (ks == XK_q && (st == Mod1Mask || st == Mod4Mask)) { LOG_INFO("Quit"); XCloseDisplay(dpy); exit(0); }
 }
 
-void btn_handler_frames(XButtonEvent *e) {
-    Window p = e->window;
-    Frame *f = find_frame(p);
-    if (!f) return;
-    if (p == f->btn_close) { close_win(f->client); return; }
-    if (p == f->btn_max) { toggle_fs(f); return; }
-    if (p == f->btn_min) { minimize(f); return; }
-    focus(p);
-    if (!f->fullscreen && (p == f->title || p == f->frame)) {
-        drag = True; drag_win = f->frame;
-        XWindowAttributes a;
-        if (!XGetWindowAttributes(dpy, drag_win, &a)) { drag = False; return; }
-        win_sx = a.x; win_sy = a.y; drag_sx = e->x_root; drag_sy = e->y_root;
-        XRaiseWindow(dpy, drag_win);
-        XGrabPointer(dpy, drag_win, False, PointerMotionMask | ButtonReleaseMask,
-                     GrabModeAsync, GrabModeAsync, None, None, CurrentTime);
-    }
-}
+ void btn_handler_frames(XButtonEvent *e) {
+     Window p = e->window;
+     Frame *f = find_frame(p);
+     if (!f) return;
+     if (p == f->btn_close) { close_win(f->client); return; }
+     if (p == f->btn_max) { toggle_fs(f); return; }
+     if (p == f->btn_min) { minimize(f); return; }
+      if (p == f->title) {
+          focus(p);
+          if (!f->fullscreen) {
+              drag = True; drag_win = f->frame;
+              XWindowAttributes a;
+              if (!XGetWindowAttributes(dpy, drag_win, &a)) { drag = False; return; }
+              win_sx = a.x; win_sy = a.y; drag_sx = e->x_root; drag_sy = e->y_root;
+              XRaiseWindow(dpy, drag_win);
+              XGrabPointer(dpy, drag_win, False, PointerMotionMask | ButtonReleaseMask,
+                           GrabModeAsync, GrabModeAsync, None, None, CurrentTime);
+              /* discard stale motion events */
+              XEvent ev_clear;
+              while (XCheckTypedEvent(dpy, MotionNotify, &ev_clear));
+          }
+          return;
+      }
+      if (p == f->frame && !f->fullscreen) {
+          int dir = get_resize_dir(f, e->x, e->y);
+          if (dir != -1) {
+              focus(f->client);
+              resize = True; resize_win = f->frame;
+              resize_sx = e->x_root; resize_sy = e->y_root;
+              resize_w = f->w; resize_h = f->h;
+              resize_ox = f->x; resize_oy = f->y;
+              resize_dir = dir;
+              Cursor c = get_resize_cursor(dir);
+              XGrabPointer(dpy, f->frame, False, PointerMotionMask | ButtonReleaseMask,
+                           GrabModeAsync, GrabModeAsync, c, c, CurrentTime);
+              /* discard stale motion events */
+              XEvent ev_clear;
+              while (XCheckTypedEvent(dpy, MotionNotify, &ev_clear));
+          }
+      }
+  }
 
-void motion_handler(XMotionEvent *e) {
-    if (drag && drag_win != None) {
-        int dx = e->x_root - drag_sx, dy = e->y_root - drag_sy;
-        XWindowAttributes a;
-        if (XGetWindowAttributes(dpy, drag_win, &a))
-            XMoveWindow(dpy, drag_win, win_sx + dx, win_sy + dy);
-        vsync();
-        XSync(dpy, False);
-    }
-}
+  void motion_handler(XMotionEvent *e) {
+      if (drag && drag_win != None) {
+          int dx = e->x_root - drag_sx, dy = e->y_root - drag_sy;
+          XWindowAttributes a;
+          if (XGetWindowAttributes(dpy, drag_win, &a)) {
+              int new_x = win_sx + dx;
+              int new_y = win_sy + dy;
+              XMoveWindow(dpy, drag_win, new_x, new_y);
+              /* update stored frame position */
+              Frame *f = find_frame(drag_win);
+              if (f) { f->x = new_x; f->y = new_y; }
+          }
+          vsync();
+          XSync(dpy, False);
+      } else if (resize && resize_win != None) {
+         Frame *f = find_frame(resize_win);
+         if (!f) { resize = False; return; }
+         int dx = e->x_root - resize_sx;
+         int dy = e->y_root - resize_sy;
+         int ox = resize_ox, oy = resize_oy;
+         int new_x = ox, new_y = oy, new_w = resize_w, new_h = resize_h;
+         switch(resize_dir) {
+             case 0: new_x += dx; new_w -= dx; break; // left
+             case 1: new_w += dx; break; // right
+             case 2: new_y += dy; new_h -= dy; break; // top
+             case 3: new_h += dy; break; // bottom
+             case 4: new_x += dx; new_y += dy; new_w -= dx; new_h -= dy; break; // tl
+             case 5: new_y += dy; new_w += dx; new_h -= dy; break; // tr
+             case 6: new_x += dx; new_h += dy; new_w -= dx; break; // bl
+             case 7: new_h += dy; new_w += dx; break; // br
+         }
+         // minimum size constraints
+         if (new_w < 100) new_w = 100;
+         if (new_h < 100) new_h = 100;
+         // ensure title bar space at top
+         if (new_y < top_h) { int diff = top_h - new_y; new_y = top_h; new_h -= diff; }
+         // ensure bottom panel space
+         if (new_y + new_h > sh - bot_h) new_h = sh - bot_h - new_y;
+         // apply changes
+         XMoveResizeWindow(dpy, f->frame, new_x, new_y, new_w, new_h);
+          XMoveResizeWindow(dpy, f->client, 0, top_h, new_w, new_h - top_h);
+          XMoveResizeWindow(dpy, f->title, 0, 0, new_w, top_h);
+         f->x = new_x; f->y = new_y; f->w = new_w; f->h = new_h;
+         draw_title(f);
+         vsync();
+         XSync(dpy, False);
+     } else {
+         // Update cursor based on hover position over window border
+         Frame *f = find_frame(e->window);
+         if (f && !f->fullscreen) {
+             if (e->window == f->frame) {
+                 int dir = get_resize_dir(f, e->x, e->y);
+                 Cursor c = get_resize_cursor(dir);
+                 XDefineCursor(dpy, e->window, c);
+             } else {
+                 XDefineCursor(dpy, e->window, cur);
+             }
+         }
+     }
+ }
 
-void release_handler(XButtonEvent *e) {
-    if (e->button == Button1 && drag) {
-        XUngrabPointer(dpy, CurrentTime);
-        drag = False; drag_win = None;
-    }
-}
+ void release_handler(XButtonEvent *e) {
+     if (e->button == Button1 && drag) {
+         XUngrabPointer(dpy, CurrentTime);
+         drag = False; drag_win = None;
+     }
+     if (e->button == Button1 && resize) {
+         XUngrabPointer(dpy, CurrentTime);
+         resize = False; resize_win = None;
+     }
+ }

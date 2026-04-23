@@ -9,13 +9,16 @@ extern Window bot_win;
 extern Window tray_win;
 extern Window clock_win;
 extern Window menu_win;
+extern Window apps_win;
 extern Bool menu_vis;
 
 #define MENU_ITEM_H 32
 #define MENU_MAX 20
 #define MENU_W 350
+
 extern int menu_off;
 extern int menu_hover;
+extern int menu_page;  // Page number for grid paging
 
 typedef struct {
     Window btn;
@@ -50,12 +53,16 @@ typedef struct {
 extern IconCache icache[MAX_ICACHE];
 extern int icache_cnt;
 
-void init_icons(void);
-void cleanup_icons(void);
-Pixmap load_icon(const char *path, int sz, Pixmap *mask);
+ void init_icons(void);
+ void cleanup_icons(void);
+ Pixmap load_icon(const char *path, int sz, Pixmap *mask);
+ void set_wallpaper(const char *path);
+ void reload_wallpaper(void);
+ void redraw_wallpaper(void);
 void mk_top(void);
-void draw_top(void);
-void mk_bot(void);
+ void draw_top(void);
+ void draw_apps_btn(void);
+ void mk_bot(void);
 void update_clock(void);
 void update_bar(void);
 void add_btn(Window c);

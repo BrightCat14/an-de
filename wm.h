@@ -8,6 +8,7 @@
 #include <X11/Xutil.h>
 #include <X11/Xft/Xft.h>
 #include <X11/extensions/Xrandr.h>
+#include <X11/extensions/shape.h>
 #include <X11/cursorfont.h>
 #include <fontconfig/fontconfig.h>
 #include <stdio.h>
@@ -45,13 +46,20 @@ extern Atom wm_del_win;
 extern Atom wm_proto;
 extern Atom wm_take_focus;
 extern Atom net_wm_name;
-extern Atom net_wm_state;
-extern Atom net_wm_state_hidden;
-extern Atom net_wm_state_fs;
+ extern Atom net_wm_state;
+ extern Atom net_wm_state_hidden;
+ extern Atom net_wm_state_fs;
+ extern Atom net_wm_state_add;
+ extern Atom net_wm_state_remove;
+ extern Atom net_wm_state_toggle;
 extern Atom net_wm_type;
-extern Atom type_dock;
-extern Atom type_desk;
-extern Atom utf8_str;
+ extern Atom type_dock;
+ extern Atom type_desk;
+ extern Atom type_toolbar;
+ extern Atom type_menu;
+ extern Atom type_popup;
+ extern Atom type_splash;
+ extern Atom utf8_str;
 extern Atom net_tray_opcode;
 
 extern XftFont *font;
@@ -82,10 +90,28 @@ extern GC gc_bar;
 extern GC gc_text;
 extern GC gc_title;
 
-extern Cursor cur;
+ extern Cursor cur;
+ extern Cursor cur_resize_tl, cur_resize_tr, cur_resize_bl, cur_resize_br;
+ extern Cursor cur_resize_l, cur_resize_r, cur_resize_t, cur_resize_b;
 
 extern int top_h;
 extern int bot_h;
+
+/* XShape extension for rounded buttons */
+extern int shape_event_base;
+extern int shape_error_base;
+extern int shape_available;
+
+/* XShape extension for rounded buttons */
+extern int shape_event_base;
+extern int shape_error_base;
+
+/* Fullscreen menu tile layout */
+#define TILE_SIZE 100
+#define TILE_PADDING 10
+#define TILE_COLS(screen_width) (((screen_width) - TILE_PADDING * 2) / (TILE_SIZE + TILE_PADDING))
+#define TILE_ROWS(screen_height) (((screen_height) - top_h - TILE_PADDING * 2) / (TILE_SIZE + TILE_PADDING))
+#define TILE_ICON_SIZE 64
 
 typedef struct {
     char *name;
